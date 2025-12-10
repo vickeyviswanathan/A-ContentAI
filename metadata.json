@@ -1,0 +1,5 @@
+{
+  "name": "A+ContentAI",
+  "description": "Generate high-quality Amazon A+ marketing assets from a single product photo using Gemini.",
+  "requestFramePermissions": []
+}
