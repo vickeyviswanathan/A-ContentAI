@@ -46,7 +46,7 @@ export const researchCategoryTrends = async (category: string): Promise<string> 
  * Step 2: Analyze the product image + Market Research to generate marketing prompts.
  */
 export const analyzeAndPlanAssets = async (
-  base64Image: string,
+  base64Images: string[],
   category: string,
   marketTrends: string,
   additionalContext: string = "",
@@ -56,6 +56,16 @@ export const analyzeAndPlanAssets = async (
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const modelId = "gemini-2.5-flash";
 
+  const isBundle = base64Images.length > 1;
+
+  // Create content parts for all uploaded images
+  const imageParts = base64Images.map(b64 => ({
+      inlineData: {
+          mimeType: "image/png",
+          data: b64,
+      }
+  }));
+
   const prompt = `
     You are an expert Amazon A+ Content Strategist & Art Director.
     
@@ -64,76 +74,64 @@ export const analyzeAndPlanAssets = async (
     Market Research on Trends: "${marketTrends}"
     User Notes: "${additionalContext}"
     Desired Vibe: "${vibe}"
+    Is Bundle/Combo: ${isBundle ? "YES (Contains " + base64Images.length + " items)" : "NO"}
     
     Step 1: VISUAL IDENTITY LOCK (Mental Sandbox)
-    Analyze the uploaded product image to strictly define its physical properties.
-    - LIQUID COLOR: Is it transparent blue? Milky white? Clear? Golden oil? (Look closely at the bottle content).
-    - VISCOSITY: Is it a Thick Gel? Watery Toner? Rich Cream? Foamy?
-    - PACKAGING: Matte finish? Glossy? 
+    Analyze the uploaded product image(s) to strictly define physical properties.
+    ${isBundle ? "Since this is a bundle, analyze EACH product's container, color, and texture." : "Analyze the liquid color, viscosity, and container."}
     
     Step 2: EXECUTION
     Create 7 distinct image prompts.
     
     CRITICAL CONSISTENCY RULE:
     You MUST enforce the visual identity defined in Step 1 across ALL 7 prompts.
-    If the product is a "Transparent Blue Gel", every single prompt describing texture, drops, or splashes MUST explicitly say "Transparent Blue Gel".
-    Do not allow the model to hallucinate "clear water" if the product is blue.
+    ${isBundle ? "For 'Group Shots', ensure ALL analyzed products are present." : "If the product is a 'Transparent Blue Gel', every prompt must say so."}
     
     PRODUCT FIDELITY RULE:
-    Do not write prompts that describe the bottle in a way that encourages redrawing (e.g. avoid "A blue bottle with white text"). 
-    Instead, use phrases like "The exact product from the reference image" combined with the environment description.
+    Do not write prompts that describe the bottle/container in a way that encourages redrawing. 
+    Use phrases like "The exact product from the reference image".
 
     STRICT TEXT RENDERING SYNTAX:
     When asking for text on the image, you MUST use this exact format: 
     Render the text: "YOUR TEXT HERE"
-    (Do not use other variations like "Text saying..." or "Label it...").
     
     REQUIRED ARCHETYPES (Adapt these based on the Market Research):
     
-    1.  **The "Market Leader" Hero**: 
-        *   Standard clear product shot but styled according to the researched trends (e.g. if research says "minimalist", do that).
-        *   Include a short 2-3 word slogan text if appropriate.
-        *   Syntax: Render the text: "SLOGAN"
+    1.  **The "${isBundle ? 'Ultimate Bundle Hero' : 'Market Leader Hero'}"**: 
+        *   ${isBundle ? "Show ALL products arranged aesthetically together." : "Standard clear product shot styled to trends."}
+        *   Include a short slogan.
+        *   Syntax: Render the text: "${isBundle ? 'COMPLETE KIT' : 'SLOGAN'}"
     
-    2.  **The "Ingredient Map" (Infographic)**:
-        *   Product + Floating ingredients.
-        *   TEXT RULE: Explicitly label the ingredients (e.g. "ALOE", "BHA") pointing to them.
-        *   Syntax: Render the text: "INGREDIENT NAME"
+    2.  **The "${isBundle ? 'Routine Steps' : 'Ingredient Map'}" (Infographic)**:
+        *   ${isBundle ? "Show the products in order of use (Step 1, Step 2)." : "Product + Floating ingredients."}
+        *   Syntax: Render the text: "${isBundle ? 'STEP 1 & 2' : 'INGREDIENT NAME'}"
     
     3.  **The "Benefit Callout" (Infographic)**:
-        *   Product with arrows or lines pointing to features.
-        *   TEXT RULE: Render texts like "HYDRATES" or "GENTLE" based on what is standard for this category.
-        *   Syntax: Render the text: "BENEFIT"
+        *   ${isBundle ? "Highlight why using these together is better (Synergy)." : "Product with arrows pointing to features."}
+        *   Syntax: Render the text: "${isBundle ? 'BETTER TOGETHER' : 'BENEFIT'}"
     
     4.  **The "Texture/Zoom"**:
-        *   Macro shot of the texture (foam/gel/serum).
-        *   **CONSISTENCY**: Use the exact LIQUID COLOR and VISCOSITY from Step 1.
-        *   TEXT RULE: Render the texture name (e.g. "MICRO-FOAM") largely in the background.
-        *   Syntax: Render the text: "TEXTURE NAME"
+        *   Macro shot of the texture(s).
+        *   ${isBundle ? "Show textures of BOTH/ALL products side-by-side or mixing." : "Macro shot of the texture."}
+        *   Syntax: Render the text: "TEXTURE"
     
-    5.  **The "Routine/Usage"**:
-        *   Show usage context (bathroom/kitchen/outdoors).
-        *   TEXT RULE: "DAILY USE" or "AM/PM" text.
+    5.  **The "Lifestyle/Usage"**:
+        *   Show usage context.
         *   Syntax: Render the text: "DAILY USE"
     
     6.  **The "Scientific Trust"**:
         *   Lab or Clean setting.
-        *   TEXT RULE: "CLINICALLY PROVEN" or "DERM TESTED" badge style text.
         *   Syntax: Render the text: "CLINICALLY PROVEN"
         
     7.  **The "Comparison/Result"**:
-        *   Visualizing the result (e.g. clear skin, shiny hair).
-        *   TEXT RULE: "BEFORE" / "AFTER" style or "VISIBLE RESULTS".
+        *   Visualizing the result (e.g. clear skin).
         *   Syntax: Render the text: "VISIBLE RESULTS"
 
     OUTPUT FORMAT:
     Return a raw JSON array of 7 objects.
     Each object must have:
-    - "category": Short name (e.g., "Benefit Anatomy").
-    - "visualPrompt": A highly detailed prompt for Gemini Image Generation.
-       - **MUST include consistency phrase**: e.g., "The liquid drops are transparent blue."
-       - **MUST include strict text syntax**: Render the text: "YOUR TEXT HERE"
-       - Specify font style: "Modern sans-serif dark font".
+    - "category": Short name.
+    - "visualPrompt": A highly detailed prompt.
     - "layoutType": One of ["SPLASH", "FLATLAY", "NEGATIVE_SPACE", "MACRO", "LIFESTYLE", "INFOGRAPHIC", "BENEFIT_MAP", "INGREDIENT_LIST"].
   `;
 
@@ -142,12 +140,7 @@ export const analyzeAndPlanAssets = async (
       model: modelId,
       contents: {
         parts: [
-          {
-            inlineData: {
-              mimeType: "image/png",
-              data: base64Image,
-            },
-          },
+          ...imageParts,
           { text: prompt },
         ],
       },
@@ -184,7 +177,7 @@ export const analyzeAndPlanAssets = async (
  * Uses gemini-3-pro-image-preview (Nano Banana Pro) for superior text rendering.
  */
 export const generateMarketingAsset = async (
-  base64SourceImage: string,
+  base64SourceImages: string[],
   prompt: string
 ): Promise<string> => {
   // @ts-ignore
@@ -195,27 +188,29 @@ export const generateMarketingAsset = async (
     ${prompt}
     
     CRITICAL GENERATION RULES:
-    1. **Text Rendering**: You are required to render specific text onto the image. The spelling must be perfect. The font should be clean, modern, and legible (San Francisco or Helvetica style).
+    1. **Text Rendering**: You are required to render specific text onto the image. The spelling must be perfect. The font should be clean, modern, and legible.
     2. **Product Fidelity (VERY IMPORTANT)**: 
-       - The main product in the image MUST be identical to the reference image provided.
-       - Do NOT alter the logo, brand text, fonts, or container shape.
-       - Treat the reference product as a rigid object that cannot be modified.
-       - If the reference image has a specific label, that label must appear on the product in the generated image.
-    3. **A+ Quality**: This is for a high-end Amazon listing. Lighting must be commercial studio quality.
-    4. **Consistency**: Ensure any liquid, drops, or texture swatches match the color and viscosity described in the prompt.
+       - The main product(s) in the image MUST be identical to the reference image(s) provided.
+       - Do NOT alter logos, brand text, or container shapes.
+       - If multiple products are provided, ensure all relevant ones described in the prompt are present.
+    3. **A+ Quality**: Commercial studio quality lighting.
+    4. **Consistency**: Ensure liquid colors and textures match the reference.
   `;
+
+  // Create content parts for all source images
+  const imageParts = base64SourceImages.map(b64 => ({
+      inlineData: {
+          mimeType: "image/png",
+          data: b64,
+      }
+  }));
 
   try {
     const response = await ai.models.generateContent({
       model: modelId,
       contents: {
         parts: [
-          {
-            inlineData: {
-              mimeType: "image/png",
-              data: base64SourceImage,
-            },
-          },
+          ...imageParts,
           { text: fullPrompt },
         ],
       },

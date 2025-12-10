@@ -7,7 +7,8 @@ import { analyzeAndPlanAssets, generateMarketingAsset, researchCategoryTrends } 
 import { GeneratedImage, GenerationStatus, PromptItem, BrandVibe } from './types';
 
 const App: React.FC = () => {
-  const [productImage, setProductImage] = useState<string | null>(null);
+  // Now managing an array of images
+  const [productImages, setProductImages] = useState<string[]>([]);
   const [category, setCategory] = useState('');
   const [additionalContext, setAdditionalContext] = useState('');
   const [brandVibe, setBrandVibe] = useState<BrandVibe>('Clean & Clinical');
@@ -33,7 +34,7 @@ const App: React.FC = () => {
       console.warn("API Key check failed", e);
     }
 
-    if (!productImage || !category.trim()) return;
+    if (productImages.length === 0 || !category.trim()) return;
 
     setStatus(GenerationStatus.RESEARCHING);
     setErrorMsg(null);
@@ -48,8 +49,11 @@ const App: React.FC = () => {
 
       // 2. Analyze & Plan
       setStatus(GenerationStatus.ANALYZING);
-      const base64Image = productImage.split(',')[1];
-      const prompts: PromptItem[] = await analyzeAndPlanAssets(base64Image, category, trends, additionalContext, brandVibe);
+      
+      // Extract base64 strings (remove data:image/png;base64 prefix)
+      const base64Images = productImages.map(img => img.split(',')[1]);
+      
+      const prompts: PromptItem[] = await analyzeAndPlanAssets(base64Images, category, trends, additionalContext, brandVibe);
 
       // 3. Generate
       setStatus(GenerationStatus.GENERATING);
@@ -59,7 +63,8 @@ const App: React.FC = () => {
         setProgress({ current: i + 1, total: prompts.length });
         try {
           const item = prompts[i];
-          const imageBase64 = await generateMarketingAsset(base64Image, item.visualPrompt);
+          // Pass ALL source images to the generator
+          const imageBase64 = await generateMarketingAsset(base64Images, item.visualPrompt);
           const newImage: GeneratedImage = {
             id: `img-${Date.now()}-${i}`,
             url: `data:image/png;base64,${imageBase64}`,
@@ -82,8 +87,8 @@ const App: React.FC = () => {
   };
 
   const handleRegenerate = async (id: string, newPrompt: string) => {
-    if (!productImage) return;
-    const base64Image = productImage.split(',')[1];
+    if (productImages.length === 0) return;
+    const base64Images = productImages.map(img => img.split(',')[1]);
 
     // Mark specific image as regenerating
     setGeneratedImages(prev => prev.map(img => 
@@ -91,7 +96,7 @@ const App: React.FC = () => {
     ));
 
     try {
-        const newImageBase64 = await generateMarketingAsset(base64Image, newPrompt);
+        const newImageBase64 = await generateMarketingAsset(base64Images, newPrompt);
         
         setGeneratedImages(prev => prev.map(img => 
             img.id === id ? { 
@@ -166,8 +171,8 @@ const App: React.FC = () => {
                 Product Source
               </h2>
               <ImageUploader 
-                onImageSelect={setProductImage} 
-                selectedImage={productImage} 
+                onImagesSelect={setProductImages} 
+                selectedImages={productImages} 
               />
             </div>
 
@@ -223,7 +228,7 @@ const App: React.FC = () => {
 
             <Button 
               onClick={handleGenerate}
-              disabled={!productImage || !category || (status !== GenerationStatus.IDLE && status !== GenerationStatus.COMPLETE && status !== GenerationStatus.ERROR)}
+              disabled={productImages.length === 0 || !category || (status !== GenerationStatus.IDLE && status !== GenerationStatus.COMPLETE && status !== GenerationStatus.ERROR)}
               className="w-full py-4 text-lg shadow-lg bg-gradient-to-r from-blue-600 to-indigo-600 border-none"
               variant="primary"
             >
@@ -284,7 +289,7 @@ const App: React.FC = () => {
 
             {generatedImages.length === 0 && status !== GenerationStatus.GENERATING ? (
               <div className="h-[500px] bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center text-slate-400">
-                 <p className="font-medium text-slate-500">Upload product & set category to start.</p>
+                 <p className="font-medium text-slate-500">Upload product(s) & set category to start.</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-20">
