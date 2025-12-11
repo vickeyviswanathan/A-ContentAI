@@ -18,7 +18,6 @@ const GeneratedAssetCard: React.FC<GeneratedAssetCardProps> = ({
   getBadgeColor 
 }) => {
   const [editedPrompt, setEditedPrompt] = useState(image.prompt);
-  const [isEditing, setIsEditing] = useState(false);
   
   // Text Editing State
   const [detectedTexts, setDetectedTexts] = useState<string[]>([]);
@@ -39,7 +38,6 @@ const GeneratedAssetCard: React.FC<GeneratedAssetCardProps> = ({
     const texts = matches.map(m => m[1]);
     
     // Only update if the length or content has actually changed to avoid cycles
-    // Simple JSON comparison is enough here
     if (JSON.stringify(texts) !== JSON.stringify(detectedTexts)) {
         setDetectedTexts(texts);
     }
@@ -60,8 +58,9 @@ const GeneratedAssetCard: React.FC<GeneratedAssetCardProps> = ({
       });
 
       setEditedPrompt(newPrompt);
-      setIsEditing(true); 
   };
+
+  const hasChanges = editedPrompt !== image.prompt;
 
   return (
     <div className="group bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-200 transition-all hover:shadow-md flex flex-col h-full">
@@ -169,30 +168,38 @@ const GeneratedAssetCard: React.FC<GeneratedAssetCardProps> = ({
             </div>
         )}
 
-        {/* Collapsible/Secondary Prompt Editor */}
+        {/* Prompt Editor */}
         <div className="flex-grow mt-2">
             <div className="flex items-center justify-between mb-2">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Raw Prompt</label>
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Prompt Editor</label>
             </div>
+            
             <textarea 
-                className="w-full text-xs p-3 border border-slate-200 rounded-lg text-slate-700 bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition-all resize-none h-16"
+                className="w-full text-xs p-3 border border-slate-200 rounded-lg text-slate-700 bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition-all resize-none h-20"
                 value={editedPrompt}
-                onChange={(e) => {
-                    setEditedPrompt(e.target.value);
-                    setIsEditing(true);
-                }}
-                placeholder="Edit the prompt here to refine the image..."
+                onChange={(e) => setEditedPrompt(e.target.value)}
+                placeholder="Modify prompt to refine generation..."
             />
+            
+            {/* Original Prompt Reference (Shown if changed) */}
+            {hasChanges && (
+                <div className="mt-2 p-2 bg-slate-100 rounded border border-slate-200">
+                    <p className="text-[9px] font-bold text-slate-500 uppercase mb-1">Original Prompt Reference:</p>
+                    <p className="text-[10px] text-slate-500 line-clamp-3 hover:line-clamp-none cursor-help transition-all">
+                        {image.prompt}
+                    </p>
+                </div>
+            )}
         </div>
         
         <div className="mt-auto pt-2">
              <Button 
                 onClick={() => onRegenerate(image.id, editedPrompt)}
                 disabled={image.isRegenerating}
-                className={`w-full text-xs py-2.5 ${isEditing ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-md' : 'bg-white border border-slate-300 text-slate-600 hover:bg-slate-50'}`}
-                variant={isEditing ? 'primary' : 'outline'}
+                className={`w-full text-xs py-2.5 ${hasChanges ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-md' : 'bg-white border border-slate-300 text-slate-600 hover:bg-slate-50'}`}
+                variant={hasChanges ? 'primary' : 'outline'}
              >
-                {image.isRegenerating ? 'Generating...' : (isEditing ? 'Regenerate Image' : 'Regenerate')}
+                {image.isRegenerating ? 'Generating...' : (hasChanges ? 'Edit & Regenerate' : 'Regenerate')}
              </Button>
         </div>
       </div>
