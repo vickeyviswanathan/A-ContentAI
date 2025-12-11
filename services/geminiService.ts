@@ -2,11 +2,20 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { PromptItem, BrandVibe } from "../types";
 
 /**
- * Helper to clean JSON strings if the model wraps them in markdown
+ * Helper to clean JSON strings.
+ * Robustly extracts the JSON array block from the response, ignoring markdown or conversational text.
  */
 const cleanJson = (text: string): string => {
-  let clean = text.replace(/```json/g, '').replace(/```/g, '').trim();
-  return clean;
+  // Find the first '[' and the last ']'
+  const firstOpen = text.indexOf('[');
+  const lastClose = text.lastIndexOf(']');
+  
+  if (firstOpen !== -1 && lastClose !== -1 && lastClose > firstOpen) {
+    return text.substring(firstOpen, lastClose + 1);
+  }
+  
+  // Fallback: Remove markdown code blocks if regex didn't match
+  return text.replace(/```json/g, '').replace(/```/g, '').trim();
 };
 
 /**
@@ -164,8 +173,13 @@ export const analyzeAndPlanAssets = async (
     const text = response.text;
     if (!text) throw new Error("No response from analysis model");
     
-    const cleanedText = cleanJson(text);
-    return JSON.parse(cleanedText) as PromptItem[];
+    try {
+        const cleanedText = cleanJson(text);
+        return JSON.parse(cleanedText) as PromptItem[];
+    } catch (parseError) {
+        console.error("JSON Parse Error. Raw text:", text);
+        throw new Error("Failed to parse the AI strategy plan.");
+    }
   } catch (error) {
     console.error("Analysis failed:", error);
     throw new Error("Failed to analyze product context.");
@@ -229,6 +243,13 @@ export const generateMarketingAsset = async (
       if (part.inlineData && part.inlineData.data) {
         return part.inlineData.data;
       }
+    }
+    
+    // Check if the model returned text refusal (common with image models if safety triggers)
+    const textPart = parts.find(p => p.text);
+    if (textPart) {
+        console.warn("Model refused to generate image, returned text:", textPart.text);
+        throw new Error("Model refused generation: " + textPart.text);
     }
 
     throw new Error("Model did not return an image.");

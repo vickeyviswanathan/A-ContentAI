@@ -59,6 +59,7 @@ const App: React.FC = () => {
       setStatus(GenerationStatus.GENERATING);
       const newImages: GeneratedImage[] = [];
 
+      let successCount = 0;
       for (let i = 0; i < prompts.length; i++) {
         setProgress({ current: i + 1, total: prompts.length });
         try {
@@ -74,15 +75,22 @@ const App: React.FC = () => {
           };
           newImages.push(newImage);
           setGeneratedImages(prev => [...prev, newImage]);
+          successCount++;
         } catch (err) {
           console.error(`Failed to generate image ${i + 1}`, err);
         }
       }
+      
+      if (successCount === 0) {
+          throw new Error("All image generations failed. Please check the console for details or try a different product image.");
+      }
+
       setStatus(GenerationStatus.COMPLETE);
     } catch (err) {
       console.error(err);
       setStatus(GenerationStatus.ERROR);
-      setErrorMsg("Error generating content. Please try again.");
+      // @ts-ignore
+      setErrorMsg(err.message || "Error generating content. Please try again.");
     }
   };
 
@@ -234,6 +242,12 @@ const App: React.FC = () => {
             >
               {status === GenerationStatus.IDLE || status === GenerationStatus.COMPLETE || status === GenerationStatus.ERROR ? 'Research & Generate' : 'Working...'}
             </Button>
+            
+            {errorMsg && (
+                <div className="bg-red-50 text-red-600 p-4 rounded-xl border border-red-100 text-sm">
+                    {errorMsg}
+                </div>
+            )}
             
             {(status === GenerationStatus.RESEARCHING || status === GenerationStatus.ANALYZING) && (
                  <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 shadow-sm animate-pulse">
